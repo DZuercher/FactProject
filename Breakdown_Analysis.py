@@ -1,23 +1,12 @@
-
-# coding: utf-8
-
-# In[1]:
-
-import zfits
 import math
-import tqdm
 import multiprocessing
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
 np.set_printoptions(threshold=np.nan)
-get_ipython().magic('matplotlib inline')
 
-
-# In[2]:
-
-diode=1
-point_num=2
+diode = 1
+point_num = 2
 
 
 # In[3]:
@@ -33,8 +22,8 @@ def sipm_vs_t(f_sample, N, t_offset):
 
     # evaluate template, here the equation is for nano seconds
     s_vs_t = 1.626*(1.0-np.exp(-0.3803*t))*np.exp(-0.0649*t)
-    
-    # Since this is only a polynomial approx. 
+
+    # Since this is only a polynomial approx.
     # We truncate artefacts like negative amplitudes
     s_vs_t[s_vs_t < 0.0] = 0.0
     return s_vs_t
@@ -138,7 +127,7 @@ def integration(n):
                 showmin2=min2
                 showmin2p=min2p
     return int_values
-    
+
 
 
 # In[4]:
@@ -180,10 +169,10 @@ for i in range(condata.shape[0]):
         condata[i]=condata_prime[6][i]
     if i%8==0:
         condata[i]=condata_prime[7][i]
-        
+
 pool=multiprocessing.Pool(8)
-num=[1,2,3,4,5,6,7,8]        
-        
+num=[1,2,3,4,5,6,7,8]
+
 print("Taking derivative...")
 dcleandata_prime=pool.map(derivative,num)
 dcleandata=np.zeros([condata.shape[0],condata.shape[1]-1])
@@ -204,11 +193,11 @@ for i in range(dcleandata.shape[0]):
         dcleandata[i]=dcleandata_prime[6][i]
     if i%8==0:
         dcleandata[i]=dcleandata_prime[7][i]
-        
+
 pool=multiprocessing.Pool(8)
-num=[1,2,3,4,5,6,7,8]        
-        
-print("Selecting...")        
+num=[1,2,3,4,5,6,7,8]
+
+print("Selecting...")
 dlarge_prime=pool.map(search,num)
 dlarge=dcleandata>0.4
 for i in range(dlarge.shape[0]):
@@ -228,13 +217,13 @@ for i in range(dlarge.shape[0]):
         dlarge[i]=dlarge_prime[6][i]
     if i%8==0:
         dlarge[i]=dlarge_prime[7][i]
-        
+
 #Only keep one point per flank
 for line,l in enumerate(dlarge):
     for i in range(0,l.shape[0]-1):
         if i==len(l):
-            break        
-        if l[i]==True:                
+            break
+        if l[i]==True:
             l[i+1:i+40]=False  #Do not want multiple counts per flank or events too close after each other. 10 is arbitrary
 eventpos,slicepos=np.nonzero(dlarge) #Minima in front of the flanks
 
@@ -261,8 +250,8 @@ for i in range(arrivaltimes.shape[0]):
         arrivaltimes[i]=arrivaltimes_prime[6][i]
     if i%8==0:
         arrivaltimes[i]=arrivaltimes_prime[7][i]
-        
-#Cleanup     
+
+#Cleanup
 todel=np.zeros(0,dtype=int)
 for i in range(arrivaltimes.shape[0]):
     if arrivaltimes[i] < 0:
@@ -294,7 +283,7 @@ for i in range(int_values.shape[0]):
         int_values[i]=int_values_prime[6][i]
     if i%8==0:
         int_values[i]=int_values_prime[7][i]
-        
+
 int_values=int_values[int_values>0]
 int_values=int_values[int_values<1e8]
 print("Done!!!")
