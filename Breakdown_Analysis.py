@@ -4,7 +4,7 @@ import multiprocessing
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
-
+from tqdm import tqdm
 
 
 def make_template():
@@ -36,14 +36,14 @@ def sipm_vs_t(f_sample, N, t_offset):
 
 
 diode = 1
-point_num = 2
-debug_plotting = True
+point_num = 4
+debug_plotting = False
 path = f"data/BV_{diode}_{point_num}.npy"
 data = np.load(path)
 
 template = make_template()
-
-for cleandata in data[:, 20:-20]:
+integrals = []
+for event_id, cleandata in tqdm(enumerate(data[:, 20:-20])):
     condata = np.convolve(template, cleandata, mode='same')
 
     dcondata = np.convolve(
@@ -53,7 +53,7 @@ for cleandata in data[:, 20:-20]:
     )
 
     diff_is_large_and_values_far_apart = []
-    for large_derivative_pos in np.where(dcondata > 0.4)[0]:
+    for large_derivative_pos in np.where(dcondata[25:-50] > 0.4)[0] + 25:
         i = large_derivative_pos
         _min = condata[i-25:i].min()
         _max = condata[i:i+50].max()
@@ -61,7 +61,9 @@ for cleandata in data[:, 20:-20]:
             continue
         diff_is_large_and_values_far_apart.append(large_derivative_pos)
 
-    diff_is_large_and_values_far_apart = np.array(diff_is_large_and_values_far_apart)
+    diff_is_large_and_values_far_apart = np.array(diff_is_large_and_values_far_apart, dtype=int)
+    if len(diff_is_large_and_values_far_apart) == 0:
+        continue
 
     big_bool_array = np.zeros_like(condata, dtype='?')
     big_bool_array[diff_is_large_and_values_far_apart] = True
@@ -83,7 +85,7 @@ for cleandata in data[:, 20:-20]:
             right_clean.append(edges[edge_id])
 
     surviving_edges = set(right_clean).intersection(left_clean)
-    integrals = []
+
     for edge_pos in surviving_edges:
 
         min1p = edge_pos
@@ -114,3 +116,13 @@ for cleandata in data[:, 20:-20]:
         plt.legend()
         plt.show()
         input('?')
+
+plt.ion()
+plt.hist(
+    integrals,
+    bins=200,
+    range=[0, 1000],
+    log=False,
+    histtype='step'
+)
+plt.show()
