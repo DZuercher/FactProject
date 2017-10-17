@@ -12,24 +12,18 @@ def gauss(x, coeffs):
     return coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2))
 
 def gauss_int(coeffs):
-    xp = np.linspace(0, 1000, 1000)
-    int_sum = 0
-    for x in xp:
-        int_sum += gauss(x, coeffs)
+    x = np.linspace(0,1000,1000)
+    int_sum = np.trapz(gauss(x, coeffs))
     return int_sum
 
 def gauss_int2(coeffs):
-    xp = np.linspace(0, 1000, 1000)
-    int_sum = 0
-    for x in xp:
-        int_sum += coeffs[0] * np.exp( -(x-coeffs[1])**2 / (2. * coeffs[2]**2) ) * (x - coeffs[1])**2 / (coeffs[2]**3)
+    x = np.linspace(0, 1000, 1000)
+    int_sum = np.trapz(coeffs[0] * np.exp( -(x-coeffs[1])**2 / (2. * coeffs[2]**2) ) * (x - coeffs[1])**2 / (coeffs[2]**3))
     return int_sum
 
 def gauss_int3(coeffs):
-    xp = np.linspace(0, 1000, 1000)
-    int_sum = 0
-    for x in xp:
-        int_sum += coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2)) * (x - coeffs[1]) / (coeffs[2]**2)
+    x = np.linspace(0, 1000, 1000)
+    int_sum = np.trapz(coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2)) * (x - coeffs[1]) / (coeffs[2]**2))
     return int_sum
 
 def gauss_sump(x, *coeffs):
@@ -221,7 +215,6 @@ def analyse(diode, point_num, voltage, temperature, debug_plotting):
                             abs(gauss_sum(mean2 + std2, *coeff) - cross_mean2) / cross_mean2
                             )
     gain = mean2 - mean1
-    #check error calculation / maybe also use cov from curve_fit
     gain_err = np.sqrt(cov[1,1] + cov[4,4])
     gain_err_alt = std1 / np.sqrt(cross_mean1) + std2 / np.sqrt(cross_mean2)
 
@@ -248,13 +241,6 @@ def analyse(diode, point_num, voltage, temperature, debug_plotting):
     print(f"Crosstalk Probability: {cross_mean*100} +/- {cross_err*100}%")
     print(f"Gain: {gain} +/- {gain_err}")
 
-
-    print(f"1 Photon events: {cross_mean1}")
-    print(f"2 Photon events: {cross_mean2}")
-    print(f"Crosstalk Probability: {cross_mean*100} +/- {cross_err*100}%")
-    print(f"Gain: {gain} +/- {gain_err}")
-
-
     if os.path.isfile(f"Results/Diode_{diode}/BV/plotdata.txt") == False:
         file=open(f"Results/Diode_{diode}/BV/plotdata.txt","w+")
         file.write("Voltage, Temperature, Gain ,Gain err.\n")
@@ -271,7 +257,7 @@ def analyse(diode, point_num, voltage, temperature, debug_plotting):
 #Adjust those !!!
 #----------------------------------------
 diode = 1
-point_num = [2, 3, 4, 5, 6, 8]
+point_num = [ 2, 3, 4, 5, 6, 8]
 voltage = [69.4972, 69.706, 69.8998, 70.1050, 70.2950, 70.0042]
 temperature = 25
 debug_plotting = False
@@ -307,7 +293,7 @@ def fitfunc(x,a,b):
 
 
 
-opt, cov = scipy.optimize.curve_fit(fitfunc, volt, gain)
+opt, cov = curve_fit(fitfunc, volt, gain)
 xp = np.linspace(69, 71, 100)
 yp = opt[0] + opt[1] * xp
 bv = -opt[0] / opt[1]
@@ -316,12 +302,15 @@ err_a = np.sqrt(cov[0,0])
 err_b = np.sqrt(cov[1,1]) 
 err_bv = abs(bv * (err_a / opt[0] + err_b / opt[1]))
 
+print(f"y-Intersect: {opt[0]} +/- {err_a}")
+print(f"slope: {opt[1]} +/- {err_b}")
+
 fig2 = plt.figure(2)
-plt.plot(xp, yp, '--')
-plt.errorbar(x = volt, y = gain, yerr = err, fmt = '.')
+plt.plot(xp, yp, 'k-')
+plt.errorbar(x = volt, y = gain, yerr = err, fmt = 'k o')
 plt.title(f"Breakdown Voltage Diode {diode}: {bv:.3f} +/- {err_bv:.3f} V")
 plt.xlabel("Bias Voltage [V]")
-plt.ylabel("Gain")
+plt.ylabel("Gain [mV * 0.5ns]")
 fig2.show()
 
 fig2.savefig(f"Results/Diode_{diode}/BV/Breakdown_{diode}.png")

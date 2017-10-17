@@ -11,24 +11,18 @@ def gauss(x, coeffs):
     return coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2))
 
 def gauss_int(coeffs):
-    xp = np.linspace(0, 1000, 1000)
-    int_sum = 0
-    for x in xp:
-        int_sum += gauss(x, coeffs)
+    x = np.linspace(0,1000,1000)
+    int_sum = np.trapz(gauss(x, coeffs))
     return int_sum
 
 def gauss_int2(coeffs):
-    xp = np.linspace(0, 1000, 1000)
-    int_sum = 0
-    for x in xp:
-        int_sum += coeffs[0] * np.exp( -(x-coeffs[1])**2 / (2. * coeffs[2]**2) ) * (x - coeffs[1])**2 / (coeffs[2]**3)
+    x = np.linspace(0, 1000, 1000)
+    int_sum = np.trapz(coeffs[0] * np.exp( -(x-coeffs[1])**2 / (2. * coeffs[2]**2) ) * (x - coeffs[1])**2 / (coeffs[2]**3))
     return int_sum
 
 def gauss_int3(coeffs):
-    xp = np.linspace(0, 1000, 1000)
-    int_sum = 0
-    for x in xp:
-        int_sum += coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2)) * (x - coeffs[1]) / (coeffs[2]**2)
+    x = np.linspace(0, 1000, 1000)
+    int_sum = np.trapz(coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2)) * (x - coeffs[1]) / (coeffs[2]**2))
     return int_sum
 
 def gauss_sump(x, *coeffs):
@@ -39,7 +33,6 @@ def gauss_sump(x, *coeffs):
 def gauss_sum(x, *coeffs):
     '''Gaussian function used for fitting'''
     return coeffs[0] * np.exp( -(x - coeffs[1])**2 / (2. * coeffs[2]**2)) + coeffs[3] * np.exp( -(x - coeffs[4])**2 / (2. * coeffs[5]**2)) + coeffs[6] * np.exp( -(x - coeffs[7])**2 / (2. * coeffs[8]**2))
-
 
 def replace_line(file_name, line_num, text):
     lines = open(file_name, 'r+').readlines()
@@ -75,7 +68,7 @@ def sipm_vs_t(f_sample, N, t_offset):
 
 
 def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
-    path = f"Data/Diode_{diode}/T_{diode}_{cone}_{point_num}.npy"
+    path = f"Data/Diode_{diode}/T_{diode}_{cone}_alt_{point_num}.npy"
     data = np.load(path)
 
     template = make_template()
@@ -90,12 +83,12 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
         )
 
         diff_is_large_and_values_far_apart = []
-        for large_derivative_pos in np.where(dcondata[25:-50] > 0.4)[0] + 25:
+        for large_derivative_pos in np.where(dcondata[25:-50] > 0.5)[0] + 25: #modded
             i = large_derivative_pos
             _min = condata[i-25:i].min()
             _max = condata[i:i+50].max()
-            if abs(_max - _min) < 5:
-                continue
+            if abs(_max - _min) < 15: #modded
+                continue    
             diff_is_large_and_values_far_apart.append(large_derivative_pos)
 
         diff_is_large_and_values_far_apart = np.array(diff_is_large_and_values_far_apart, dtype=int)
@@ -162,8 +155,7 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
         integrals,
         bins = 200,
         range = [0, 1000],
-        log = False,
-        histtype = 'step'
+        histtype='step'
     )
 
     max1p = np.argmax(n)
@@ -179,7 +171,6 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
     bin_centres = (bins[:-1] + bins[1:]) / 2
 
     #Fitting first and second peak
-    bin_centres = (bins[:-1] + bins[1:]) / 2
 
     p0t = [n[max1p], max1, 10., n[max2p], max2, 10.]
 
@@ -188,12 +179,11 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
     gain_est = coefft[4] - coefft[1]
     gain_estp = int(gain_est * 200 / 1000)
 
-
     p0 = [n[max1p], max1, 10., n[max2p], max2, 10., n[max2p + gain_estp], max2 + gain_est, 10.]
 
     coeff, cov = curve_fit(gauss_sum, bin_centres[max1p - 20:], n[max1p - 20:], p0 = p0)
-
     norm1, mean1, std1, norm2, mean2, std2, norm3, mean3, std3 = coeff
+
 
     hist_fit = gauss_sum(bin_centres, *coeff)
     single_fit1 = gauss(bin_centres, [norm1, mean1, std1])
@@ -202,6 +192,7 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
 
     cross_mean1 = gauss_int([norm1, mean1, std1])
     cross_mean2 = gauss_int([norm2, mean2, std2])
+    cross_mean3 = gauss_int([norm3, mean3, std3])
     
     cross_mean1_err = np.sqrt(abs(gauss_int2([norm1, mean1, std1]))**2 * cov[2,2] +
     abs(gauss_int3([norm1, mean1, std1]))**2 * cov[1,1] +
@@ -213,33 +204,33 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
     abs(cross_mean2 / norm2)**2 * cov[3,3]
     	)
 
+    cross_mean3_err = np.sqrt(abs(gauss_int2([norm3, mean3, std3]))**2 * cov[8,8] +
+    abs(gauss_int3([norm3, mean3, std3]))**2 * cov[7,7] +
+    abs(cross_mean3 / norm3)**2 * cov[6,6]
+        )
+
     cross_mean = cross_mean2 / cross_mean1
+
+    cross_mean_alt = (cross_mean2 + cross_mean3)/(cross_mean1 + cross_mean2 + cross_mean3)
+
+    total_counts = cross_mean1 + cross_mean2 + cross_mean3
+
+    total_counts_err = cross_mean1_err + cross_mean2_err + cross_mean3_err 
+
 
     cross_err = cross_mean * np.sqrt((cross_mean1_err / cross_mean1)**2 + (cross_mean2_err / cross_mean2)**2)
 
-    cross_err_alt = cross_mean * (
-                            abs(gauss_sum(mean1 + std1, *coeff) - cross_mean1) / cross_mean1 +
-                            abs(gauss_sum(mean2 + std2, *coeff) - cross_mean2) / cross_mean2
-                            )
     gain = mean2 - mean1
-    #check error calculation / maybe also use cov from curve_fit
     gain_err = np.sqrt(cov[1,1] + cov[4,4])
-    gain_err_alt = std1 / np.sqrt(cross_mean1) + std2 / np.sqrt(cross_mean2)
 
-    plt.axvline(mean1, c = 'g', label = "Gaussian Mean")
-    plt.axvline(mean2, c = 'g')
-    plt.axvline(bins[max1p], c = 'k', label = "Init Max")
-    plt.axvline(bins[max2p], c = 'k')
-    plt.axvline(bins[min1p], c = 'y', label = "Init Min")
-    plt.axvline(bins[min2p], c = 'y')
-    plt.axvline(bins[max2p + gain_estp], c = 'k')
+    plt.plot(bin_centres, single_fit1, c = 'indianred', alpha = 0.3)
+    plt.plot(bin_centres, single_fit2, c = 'indianred', alpha = 0.3)
+    plt.plot(bin_centres, single_fit3, c = 'indianred', alpha = 0.3)
+    
 
     plt.plot(bin_centres, hist_fit, c = 'r')
-    plt.plot(bin_centres, single_fit1, c = 'rosybrown', alpha = 0.3)
-    plt.plot(bin_centres, single_fit2, c = 'indianred', alpha = 0.3)
-    plt.plot(bin_centres, single_fit3, c = 'brown', alpha = 0.3)
-    plt.xlabel("p.e.")
-    plt.ylabel("# of events")
+    plt.xlabel("Extracted charge [mV 0.5ns]")
+    plt.ylabel("counts")
     plt.legend()
     plt.title(f"Vol: {voltage} V, Temp: {temperature}, Gain: {mean2-mean1}")
     plt.show()
@@ -252,25 +243,25 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
 
     if os.path.isfile(f"Results/Diode_{diode}/T/plotdata_{cone}.txt") == False:
         file=open(f"Results/Diode_{diode}/T/plotdata_{cone}.txt","w+")
-        file.write("Voltage, Temperature, Gain, Gain err. , Crosstalk Prob., Cross err. \n")
+        file.write("Voltage, Temperature, Gain, Gain err. , Crosstalk Prob., Cross err.,  Total counts., Total counts err. \n")
         for i in range(100):
             file.write(". \n")
         file.close()
     
         
-    replace_line(f"Results/Diode_{diode}/T/plotdata_{cone}.txt", point_num, f"{voltage} {temperature} {gain} {gain_err} {cross_mean*100} {cross_err*100}")
-
+    replace_line(f"Results/Diode_{diode}/T/plotdata_{cone}.txt", point_num, f"{voltage} {temperature} {gain} {gain_err} {cross_mean_alt*100} {cross_err*100} {total_counts} {total_counts_err}")
+    plt.show()
     fig.savefig(f"Results/Diode_{diode}/T/Fingerplot_T_{diode}_{point_num}_{cone}.png")
     plt.close()
 
 #Adjust those !!!
 #----------------------------------------
 diode = 1
-point_num = [1, 2, 3, 4]
-voltage_True = [69.3, 69.5, 69.7, 69.9]
-voltage_False = [69.3, 69.5, 69.7, 69.9]
-temperature_True = [35, 25, 15, 5]
-temperature_False = [5, 15, 25, 35]
+point_num = [1, 2, 3, 4, 5]
+voltage_True = [69.0095, 69.3829, 69.7102, 69.9180, 70.1993]
+voltage_False = [69.0970, 69.3815, 69.7096, 69.9196, 70.2019]
+temperature_True = [5.12, 10.12, 15.13, 20.15, 25.18]
+temperature_False = [5.09, 10.09, 15.12, 20.12, 25.18]
 debug_plotting = False
 #----------------------------------------
 
@@ -300,6 +291,10 @@ gain2 = []
 g_err2 = []
 c2 = []
 c_err2 = []
+total = []
+total_err = []
+total2 = []
+total_err2 = []
 file1 = open(f"Results/Diode_{diode}/T/plotdata_True.txt", 'r')
 file2 = open(f"Results/Diode_{diode}/T/plotdata_False.txt", 'r')
 
@@ -320,7 +315,11 @@ for id, line in enumerate(file1):
             if i == 4:
                 c.append(float(word))
             if i == 5:
-                c_err.append(float(word[:-1]))
+                c_err.append(float(word))
+            if i == 6:
+                total.append(float(word)/(30000*0.512))
+            if i == 7:
+                total_err.append(float(word[:-1])/(30000*0.512))
 file1.close()
 
 for id, line in enumerate(file2):
@@ -339,32 +338,35 @@ for id, line in enumerate(file2):
             if i == 4:
                 c2.append(float(word))
             if i == 5:
-                c_err2.append(float(word[:-1]))
+                c_err2.append(float(word))
+            if i == 6:
+                total2.append(float(word)/(30000*0.512))
+            if i == 7:
+                total_err2.append(float(word[:-1])/(30000*0.512))
 
 file2.close()
 
-def fitfunc(x,a,b):
+def fitfunc(x, a, b):
     return a + b * x
 
 
 opt1, cov1 = curve_fit(fitfunc, temp, gain)
 opt2, cov2 = curve_fit(fitfunc, temp2, gain2)
 xp = np.linspace(0, 40, 100)
+
 yp1 = opt1[0] + opt1[1] * xp
 yp2 = opt2[0] + opt2[1] * xp
 
-
 fig2 = plt.figure(2)
-plt.plot(xp, yp1, 'r--')
-plt.plot(xp, yp2, 'b--')
-plt.errorbar(x = temp, y = gain, yerr = g_err,  fmt = 'r.', label = "With cone")
-plt.errorbar(x = temp2, y = gain2, yerr = g_err2, fmt = 'b.', label = "Without cone")
+plt.ylim([150, 300])
+plt.errorbar(x = temp, y = gain, yerr = g_err,  fmt = 'r o', label = "With lightguide")
+plt.errorbar(x = temp2, y = gain2, yerr = g_err2, fmt = 'b o', label = "Without lightguide")
 plt.title(f"Gain vs. Temperature")
 plt.xlabel(f"Temperature [\u2103]")
-plt.ylabel("Gain")
+plt.ylabel("Gain [mV * 0.5ns]")
 plt.legend()
 fig2.show()
-
+ 
 fig2.savefig(f"Results/Diode_{diode}/T/Gain_{diode}.png")
 plt.close()
 
@@ -375,17 +377,36 @@ xp = np.linspace(0, 40, 100)
 yp1 = opt1[0] + opt1[1] * xp
 yp2 = opt2[0] + opt2[1] * xp
 
+print(f"Without cone: c= {opt1[0]} +/- {np.sqrt(cov1[0,0])}, s={opt1[1]} +/- {np.sqrt(cov1[1,1])}")
+print(f"With cone: c= {opt2[0]} +/- {np.sqrt(cov2[0,0])}, s={opt2[1]} +/- {np.sqrt(cov2[1,1])}")
 
 fig3 = plt.figure(3)
-plt.plot(xp, yp1, 'r--')
-plt.plot(xp, yp2, 'b--')
-plt.errorbar(x = temp, y = c, yerr = c_err, fmt = 'r.', label = "With cone")
-plt.errorbar(x = temp2, y = c2, yerr = c_err2, fmt = 'b.', label = "Without cone")
+plt.plot(xp, yp1, 'r-')
+plt.plot(xp, yp2, 'b-')
+plt.errorbar(x = temp, y = c, yerr = c_err, fmt = 'r o', label = "With lightguide", alpha = 0.5)
+plt.errorbar(x = temp2, y = c2, yerr = c_err2, fmt = 'b o', label = "Without lightguide", alpha = 0.5)
 plt.title(f"Crosstalk Probability vs. Temperature")
 plt.xlabel(f"Temperature [\u2103]")
-plt.ylabel("Crosstalk Probability")
+plt.ylabel("Crosstalk Probability [%]")
 plt.legend()
 fig3.show()
 
 fig3.savefig(f"Results/Diode_{diode}/T/Crosstalk_{diode}.png")
 plt.close()
+
+
+fig4 = plt.figure(4)
+plt.errorbar(x = temp, y = total, yerr = total_err, fmt = 'r o', label = "With lightguide", alpha = 0.5)
+plt.errorbar(x = temp2, y = total2, yerr = total_err2, fmt = 'b o', label = "Without lightguide", alpha = 0.5)
+plt.title(f"Dark count rate vs. Temperature")
+plt.xlabel(f"Temperature [\u2103]")
+plt.ylabel("Rate [MHz]")
+plt.legend()
+fig3.show()
+
+fig4.savefig(f"Results/Diode_{diode}/T/Rate_{diode}.png")
+plt.close()
+
+print(f"Rate in MHz with guide: {total} +/- {total_err}")
+print(f"-------------------------------------------------------")
+print(f"Rate in MHz without guide: {total2} +/- {total_err2}")
