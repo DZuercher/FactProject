@@ -73,6 +73,7 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
 
     template = make_template()
     integrals = []
+    ontime=0
     for event_id, cleandata in tqdm(enumerate(data[:, 20:-20])):
         condata = np.convolve(template, cleandata, mode='same')
 
@@ -115,6 +116,13 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
                 right_clean.append(edges[edge_id])
 
         surviving_edges = set(right_clean).intersection(left_clean)
+        dummy = [True] * condata.shape[0]
+        dummy = np.array(dummy)
+        for event in surviving_edges:
+        	dummy[event - 30:event] = False
+        	dummy[event + 30:event + 80] = False
+        ontime += np.sum(dummy) * (512 / 1024) #ontime in nanoseconds
+
 
         for edge_pos in surviving_edges:
 
@@ -209,19 +217,35 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
     abs(cross_mean3 / norm3)**2 * cov[6,6]
         )
 
-    cross_mean = cross_mean2 / cross_mean1
-
-    cross_mean_alt = (cross_mean2 + cross_mean3)/(cross_mean1 + cross_mean2 + cross_mean3)
 
     total_counts = cross_mean1 + cross_mean2 + cross_mean3
+    rate = total_counts / ontime * 1000#rate in MHz
 
     total_counts_err = cross_mean1_err + cross_mean2_err + cross_mean3_err 
+    rate_err = total_counts_err / ontime * 1000
 
+    from scipy.misc import factorial
+    #Poisson Correction
+    def poisson(lam, k):
+        return np.exp(-lam)*lam**k/factorial(k)
+
+    lam = rate * 8* 0.512 / 1024 
+    second_corr = poisson(lam, 2) * total_counts
+    summi = 0
+    for k in range(3,20):
+        summi += poisson(lam, k)
+    third_corr = summi * total_counts
+
+    cross_mean2 -= second_corr
+    cross_mean3 -= third_corr
+
+    cross_mean_alt = (cross_mean2 + cross_mean3)/(cross_mean1 + cross_mean2 + cross_mean3)
 
     cross_err = cross_mean * np.sqrt((cross_mean1_err / cross_mean1)**2 + (cross_mean2_err / cross_mean2)**2)
 
     gain = mean2 - mean1
     gain_err = np.sqrt(cov[1,1] + cov[4,4])
+
 
     plt.plot(bin_centres, single_fit1, c = 'indianred', alpha = 0.3)
     plt.plot(bin_centres, single_fit2, c = 'indianred', alpha = 0.3)
@@ -235,21 +259,16 @@ def analyse(diode, point_num, voltage, temperature, cone, debug_plotting):
     plt.title(f"Vol: {voltage} V, Temp: {temperature}, Gain: {mean2-mean1}")
     plt.show()
 
-    print(f"1 Photon events: {cross_mean1}")
-    print(f"2 Photon events: {cross_mean2}")
-    print(f"Crosstalk Probability: {cross_mean*100} +/- {cross_err*100}%")
-    print(f"Gain: {gain} +/- {gain_err}")
-
 
     if os.path.isfile(f"Results/Diode_{diode}/T/plotdata_{cone}.txt") == False:
         file=open(f"Results/Diode_{diode}/T/plotdata_{cone}.txt","w+")
-        file.write("Voltage, Temperature, Gain, Gain err. , Crosstalk Prob., Cross err.,  Total counts., Total counts err. \n")
+        file.write("Voltage, Temperature, Gain, Gain err. , Crosstalk Prob., Cross err.,  Rate., Rate err. \n")
         for i in range(100):
             file.write(". \n")
         file.close()
     
         
-    replace_line(f"Results/Diode_{diode}/T/plotdata_{cone}.txt", point_num, f"{voltage} {temperature} {gain} {gain_err} {cross_mean_alt*100} {cross_err*100} {total_counts} {total_counts_err}")
+    replace_line(f"Results/Diode_{diode}/T/plotdata_{cone}.txt", point_num, f"{voltage} {temperature} {gain} {gain_err} {cross_mean_alt*100} {cross_err*100} {rate} {rate_err}")
     plt.show()
     fig.savefig(f"Results/Diode_{diode}/T/Fingerplot_T_{diode}_{point_num}_{cone}.png")
     plt.close()
@@ -317,9 +336,9 @@ for id, line in enumerate(file1):
             if i == 5:
                 c_err.append(float(word))
             if i == 6:
-                total.append(float(word)/(30000*0.512))
+                total.append(float(word))
             if i == 7:
-                total_err.append(float(word[:-1])/(30000*0.512))
+                total_err.append(float(word[:-1]))
 file1.close()
 
 for id, line in enumerate(file2):
@@ -340,9 +359,9 @@ for id, line in enumerate(file2):
             if i == 5:
                 c_err2.append(float(word))
             if i == 6:
-                total2.append(float(word)/(30000*0.512))
+                total2.append(float(word))
             if i == 7:
-                total_err2.append(float(word[:-1])/(30000*0.512))
+                total_err2.append(float(word[:-1]))
 
 file2.close()
 
@@ -406,7 +425,3 @@ fig3.show()
 
 fig4.savefig(f"Results/Diode_{diode}/T/Rate_{diode}.png")
 plt.close()
-
-print(f"Rate in MHz with guide: {total} +/- {total_err}")
-print(f"-------------------------------------------------------")
-print(f"Rate in MHz without guide: {total2} +/- {total_err2}")
